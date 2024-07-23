@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 )
+
+const MEASURE_SECONDS = 3
 
 type ClusterNodesRequest struct {
 	Jsonrpc string `json:"jsonrpc"`
@@ -23,6 +27,21 @@ type Node struct {
 
 type ClusterNodesResponse struct {
 	Result []Node `json:"result"`
+}
+
+func removeDuplicates(strings []string) []string {
+	// Используем карту для отслеживания уникальных строк
+	uniqueStrings := make(map[string]bool)
+	result := []string{}
+
+	for _, str := range strings {
+		if _, exists := uniqueStrings[str]; !exists {
+			uniqueStrings[str] = true
+			result = append(result, str)
+		}
+	}
+
+	return result
 }
 
 func get_all_rpc_ips(url string) ([]string, error) {
@@ -121,41 +140,64 @@ func calculate_speed(body io.ReadCloser, measureTime int) float64 {
 }
 
 func main() {
-	// numCores := runtime.NumCPU()
+	// Exit code ensuring
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
+	numCores := runtime.NumCPU()
 	// runtime.GOMAXPROCS(numCores)
-	// semaphore := make(chan struct{}, numCores) // ограничиваем количество одновременно запущенных горутин до числа ядер процессора
+
 	url := "https://api.mainnet-beta.solana.com"
-	rpcIps, err := get_all_rpc_ips(url)
-	rpcIpsLen := len(rpcIps)
+	res, err := get_all_rpc_ips(url)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
-		return
+		return nil
 	}
-
+	rpcIps := removeDuplicates(res)
+	rpcIpsLen := len(rpcIps)
 	fmt.Println(rpcIpsLen, " Nodes Total Founded")
+	batchLength := numCores
+	// Preparing input and output channels for workers
+	ipsChannel := make(chan string, batchLength)
+	messages := make(chan string, batchLength)
 
-	cycleRange := rpcIpsLen
-	messages := make(chan string, cycleRange)
+	// Initializing Goroutine workers
 	var wg sync.WaitGroup
-	for i := 0; i < cycleRange; i++ {
+	for i := 0; i < batchLength; i++ {
 		wg.Add(1)
+		// Worker itself
 		go func() {
 			defer wg.Done()
-			speed, err := measure_speed(rpcIps[i], 5)
-			if err != nil {
-				messages <- fmt.Sprintf("IP %s: Error\n", rpcIps[i])
-			} else {
-				messages <- fmt.Sprintf("IP %s: %.2f MB/s\n", rpcIps[i], speed)
+			// Reading channel until it closed
+			for ip := range ipsChannel {
+				speed, err := measure_speed(ip, MEASURE_SECONDS)
+				if err != nil {
+					messages <- fmt.Sprintf("IP %s: Error\n", ip)
+				} else {
+					messages <- fmt.Sprintf("IP %s: %.2f MB/s\n", ip, speed)
+				}
 			}
 		}()
 	}
 
-	wg.Wait()
-	close(messages)
+	// Input loading goroutine
+	go func() {
+		defer close(ipsChannel) // close input channel afterwards
+		for _, ip := range rpcIps {
+			ipsChannel <- ip
+		}
+	}()
+
+	// Reading from output channel until it closes
 	i := 0
 	for elem := range messages {
-		fmt.Printf("%d) %s", i, elem)
 		i++
+		fmt.Printf("%d) %s", i, elem)
 	}
-
+	wg.Wait()       // Wait until all goroutines are done
+	close(messages) // Close output channel
+	return nil
 }
