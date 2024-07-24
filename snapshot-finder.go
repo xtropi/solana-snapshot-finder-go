@@ -13,7 +13,8 @@ import (
 	"time"
 )
 
-const MEASURE_SECONDS = 3
+const MEASURE_SECONDS int = 3
+const MAINNET_CLUSTER_URL string = "https://api.mainnet-beta.solana.com"
 
 type ClusterNodesRequest struct {
 	Jsonrpc string `json:"jsonrpc"`
@@ -150,8 +151,7 @@ func run() error {
 	numCores := runtime.NumCPU()
 	// runtime.GOMAXPROCS(numCores)
 
-	url := "https://api.mainnet-beta.solana.com"
-	res, err := get_all_rpc_ips(url)
+	res, err := get_all_rpc_ips(MAINNET_CLUSTER_URL)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return nil
