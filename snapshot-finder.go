@@ -45,7 +45,7 @@ func removeDuplicates(strings []string) []string {
 	return result
 }
 
-func get_all_rpc_ips(url string) ([]string, error) {
+func getAllRpcIps(url string) ([]string, error) {
 
 	requestBody := ClusterNodesRequest{
 		Jsonrpc: "2.0",
@@ -98,7 +98,7 @@ func get_all_rpc_ips(url string) ([]string, error) {
 	return rpcIps, nil
 }
 
-func measure_speed(ip string, measureTime int) (float64, error) {
+func measureSpeed(ip string, measureTime int) (float64, error) {
 
 	url := fmt.Sprintf("http://%s/snapshot.tar.bz2", ip)
 	client := &http.Client{
@@ -115,11 +115,11 @@ func measure_speed(ip string, measureTime int) (float64, error) {
 		return 0, fmt.Errorf("Failed to get a valid response from %s, status code: %d\n", url, resp.StatusCode)
 	}
 
-	speed := calculate_speed(resp.Body, measureTime)
+	speed := calculateSpeed(resp.Body, measureTime)
 	return speed, nil
 }
 
-func calculate_speed(body io.ReadCloser, measureTime int) float64 {
+func calculateSpeed(body io.ReadCloser, measureTime int) float64 {
 	var loaded int64
 	buf := make([]byte, 81920) // 80KB
 	startTime := time.Now()
@@ -151,7 +151,7 @@ func run() error {
 	numCores := runtime.NumCPU()
 	// runtime.GOMAXPROCS(numCores)
 
-	res, err := get_all_rpc_ips(MAINNET_CLUSTER_URL)
+	res, err := getAllRpcIps(MAINNET_CLUSTER_URL)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return nil
@@ -173,7 +173,7 @@ func run() error {
 			defer wg.Done()
 			// Reading channel until it closed
 			for ip := range ipsChannel {
-				speed, err := measure_speed(ip, MEASURE_SECONDS)
+				speed, err := measureSpeed(ip, MEASURE_SECONDS)
 				if err != nil {
 					messages <- fmt.Sprintf("IP %s: Error\n", ip)
 				} else {
