@@ -140,14 +140,7 @@ func calculateSpeed(body io.ReadCloser, measureTime int) float64 {
 	return speed
 }
 
-func main() {
-	// Exit code ensuring
-	if err := run(); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func run() error {
+func checkAllNodesSpeed() error {
 	numCores := runtime.NumCPU()
 	// runtime.GOMAXPROCS(numCores)
 
@@ -199,5 +192,20 @@ func run() error {
 	}
 	wg.Wait()       // Wait until all goroutines are done
 	close(messages) // Close output channel
+	return nil
+}
+
+func main() {
+	// Exit code ensuring
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
+	// checkSavedNodesSpeed()
+	checkAllNodesSpeed()
+	// saveCheckedNodes()
+	// downloadSnapshot()
 	return nil
 }
